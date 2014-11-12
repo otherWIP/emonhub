@@ -17,6 +17,13 @@ import threading
 
 import emonhub_coder as ehc
 
+# Leave I2C if not available or not supported
+try:
+    import smbus
+    twi = True
+except ImportError:
+    twi = False
+
 """class EmonHubInterfacer
 
 Monitors a data source. 
@@ -698,6 +705,110 @@ class EmonHubSocketInterfacer(EmonHubInterfacer):
                 return self._process_frame(f, t)
             else:
                 return self._process_frame(f)
+
+
+class EmonHubTwiInterfacer(EmonHubInterfacer):
+
+    def __init__(self, name, queue, bus_id = 1):
+        """Initialize Interfacer
+
+        """
+
+        if twi:
+            # if smbus module available start I2C bus (0 for early or 1 for most RPi's)
+            self._bus = smbus.SMBus(int(bus_id))
+        else:
+            raise EmonHubInterfacerInitError('smbus module not available')
+
+        # Initialization
+        super(EmonHubTwiInterfacer, self).__init__(name, queue)
+
+        # Initialize settings
+        self._defaults.update({'interval': 5, 'datacode': 'h'})
+
+        # This line will stop the default values printing to logfile at start-up
+        # unless they have been overwritten by emonhub.conf entries
+        # comment out if diagnosing a startup value issue
+        self._settings.update(self._defaults)
+
+        # TWI specific settings
+        self._twi_settings =  ({'deviceids': '', 'length': ''})
+
+    def set(self, **kwargs):
+        """
+
+        """
+
+        for key, setting in self._twi_settings.iteritems():
+            # Decide which setting value to use
+            if key in kwargs.keys():
+                setting = kwargs[key]
+            else:
+                setting = self._twi_settings[key]
+            # each device needs unique address (3 - 119 ?)
+            if key == 'deviceids' and all(int(i) >= 3 for i in setting) and all(int(i) <= 119 for i in setting):
+                pass
+            elif key == 'length' and int(setting) >=0 and int(setting) <=32:
+                pass
+            else:
+                self._log.warning("'%s' is not a valid setting for %s: %s" % (str(setting), self.name, key))
+                continue
+            self._settings[key] = setting
+            self._log.info("Setting " + self.name + " %s: %s" % (key, setting))
+
+        # include kwargs from parent
+        super(EmonHubTwiInterfacer, self).set(**kwargs)
+
+    def read(self):
+        """
+
+        """
+        t = time.time()
+
+        # Check if interval has passed
+        if t - self._interval_timestamp < int(self._settings['interval']):
+            return
+
+        # Trigger for remote calculations to be prepared before reading
+        # (Could also test broadcasting to 0 - http://www.gammon.com.au/forum/?id=10896 )
+        for b in self._settings['deviceids']:
+            c = 4
+            try:
+                self._bus.write_byte(int(b), c)
+            except:
+                continue
+        self._interval_timestamp = t
+
+        # allow time for calculations to be done (calcVIPF takes 4-500uS, 0.5mS 0.0005 secs)
+        time.sleep(0.01)
+
+        # read up to 32 bytes per device
+        for b in self._settings['deviceids']:
+            retry = 0
+            add = int(b)
+            cmd = 0
+            len = int(self._settings['length'])
+            frame = []
+            # retry read up to 5 times if required (interrupt clashes etc)
+            max_retry = 5
+            while (retry < max_retry):
+                try:
+                    frame = self._bus.read_i2c_block_data(add, cmd, len)
+                    break
+                except Exception as e:
+                    retry += 1
+            # add formatted and processed frame to queue
+            if frame:
+                f = str(b) + " " + ' '.join(map(str, frame))
+                self._rxq.put(self._process_frame(f, t))
+            # log info about retry attempts
+            if retry:
+                if retry == max_retry:
+                    self._log.warning(self.name + " address " + str(add) + " failed "
+                                      + str(max_retry) + " attempted reads")
+                else:
+                    self._log.debug(self.name + " address " + str(add) + " retried: " + str(retry) + " times")
+
 
 """class EmonHubInterfacerInitError
 
