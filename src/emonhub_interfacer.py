@@ -1146,7 +1146,7 @@ class EmonHubMqttInterfacer(EmonHubInterfacer):
         self._defaults.update({'datacode': '0'})
 
         # Add any MQTT specific settings
-        self._mqtt_settings = {'basetopic': 'emonhub/+', 'txtopics': 'tx/', 'rxtopics': 'rx/'}
+        self._mqtt_settings = {'basetopic': 'emonhub/', 'txtopics': 'tx/', 'rxtopics': 'rx/'}
         self._settings.update(self._mqtt_settings)
 
         self.init_settings.update({'mqtt_host':mqtt_host, 'mqtt_port':mqtt_port})
