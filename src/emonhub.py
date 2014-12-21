@@ -36,7 +36,7 @@ Controlled by the user via EmonHubSetup
 
 class EmonHub(object):
     
-    __version__ = 'Pre-Release Development Version (rc1.1)'
+    __version__ = 'Pre-Release Development Version (rc2.0?)'
     
     def __init__(self, setup):
         """Setup an OpenEnergyMonitor emonHub.
@@ -140,7 +140,7 @@ class EmonHub(object):
         """Close hub. Do some cleanup before leaving."""
         
         self._log.info("Exiting hub...")
-        
+
         for I in self._interfacers.itervalues():
             I.stop = True
             I.join()
@@ -148,7 +148,7 @@ class EmonHub(object):
         for R in self._reporters.itervalues():
             R.stop = True
             R.join()
-        
+
         self._log.info("Exit completed")
         logging.shutdown()
 
