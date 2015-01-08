@@ -154,9 +154,9 @@ class EmonHubInterfacer(threading.Thread):
             return False
             
         # Discard if first value is not a valid node id
-        n = float(received[0])
+        n = float(rxc.realdata[0])
         if n % 1 != 0 or n < 0 or n > 31:
-            self._log.warning(str(ref) + " Discarded RX frame 'node id outside scope' : " + str(received))
+            self._log.warning(str(cargo.uri) + " Discarded RX frame 'node id outside scope' : " + str(rxc.realdata))
             return False
 
         # check if node is listed and has individual datacodes for each value
@@ -520,6 +520,11 @@ class EmonHubSerialInterfacer(EmonHubInterfacer):
 
         # Reset buffer
         self._rx_buf = ''
+        
+        # Discard empty frames
+        if not f:
+            self._log.warning("Discarded empty frame")
+            return
 
         # Create a Payload object
         c = new_cargo(rawdata=f)
@@ -555,7 +560,7 @@ class EmonHubJeeInterfacer(EmonHubSerialInterfacer):
         if com_baud != 0:
             super(EmonHubJeeInterfacer, self).__init__(name, rxq, txq, com_port, com_baud)
         else:
-            for com_baud in (57600, 9600):
+            for com_baud in (38400, 9600):
                 super(EmonHubJeeInterfacer, self).__init__(name, rxq, txq, com_port, com_baud)
                 self._ser.write("?")
                 time.sleep(2)
@@ -627,6 +632,11 @@ class EmonHubJeeInterfacer(EmonHubSerialInterfacer):
 
         # Reset buffer
         self._rx_buf = ''
+        
+        # Discard empty frames
+        if not f:
+            self._log.warning("Discarded empty frame")
+            return
 
         if not f:
             return
